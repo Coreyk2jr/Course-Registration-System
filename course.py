@@ -4,13 +4,16 @@ class Student:
     def __init__(self, student_id, name):
         self.student_id = student_id
         self.name = name
-        self.courses = [] 
+        self.courses = []
 
     def enroll(self, course):
         if course not in self.courses:
-            self.courses.append(course)
-            course.add_student(self)
-            print(f"Enrollment successful: {self.name} enrolled in {course.course_code} - {course.title}")
+            if len(course.students) < course.max_capacity:
+                self.courses.append(course)
+                course.add_student(self)
+                print(f"Enrollment successful: {self.name} enrolled in {course.course_code} - {course.title}")
+            else:
+                print(f"Cannot enroll {self.name} in {course.course_code}. Course is full.")
         else:
             print(f"{self.name} is already enrolled in {course.course_code}")
 
@@ -24,7 +27,6 @@ class Student:
 
     def __str__(self):
         return f"Student ID: {self.student_id}, Name: {self.name}"
-
 
 class Course:
     def __init__(self, course_code, title, max_capacity):
@@ -46,11 +48,23 @@ class Course:
     def __str__(self):
         return f"Course Code: {self.course_code}, Title: {self.title}, Capacity: {len(self.students)}/{self.max_capacity}"
 
-
 class UniversityDatabaseCLI:
     def __init__(self):
         self.students = {}
         self.courses = {}
+        # Add pre-installed courses
+        self.pre_install_courses()
+
+    def pre_install_courses(self):
+        pre_installed_courses = [
+            {"course_code": "CS101", "title": "Introduction to Computer Science", "max_capacity": 30},
+            {"course_code": "MATH101", "title": "Calculus I", "max_capacity": 25},
+            {"course_code": "ENG101", "title": "English Literature", "max_capacity": 20},
+            {"course_code": "BIO101", "title": "Biology 101", "max_capacity": 30}
+        ]
+        for course in pre_installed_courses:
+            self.courses[course["course_code"]] = Course(course["course_code"], course["title"], course["max_capacity"])
+        print("Pre-installed courses have been added.")
 
     def run(self):
         while True:
@@ -102,7 +116,14 @@ class UniversityDatabaseCLI:
             print(f"Error: Course with code '{course_code}' already exists.")
         else:
             title = input("Enter course title: ").strip()
-            max_capacity = int(input("Enter maximum capacity: ").strip())
+            try:
+                max_capacity = int(input("Enter maximum capacity: ").strip())
+                if max_capacity <= 0:
+                    print("Error: Maximum capacity must be a positive number.")
+                    return
+            except ValueError:
+                print("Error: Please enter a valid number for maximum capacity.")
+                return
             self.courses[course_code] = Course(course_code, title, max_capacity)
             print(f"Course added successfully: {course_code} - {title}")
 
@@ -140,8 +161,7 @@ class UniversityDatabaseCLI:
         for course in self.courses.values():
             print(course)
 
-
 if __name__ == "__main__":
-    # Initialize and run the UniversityDatabaseCLI
     university_db = UniversityDatabaseCLI()
     university_db.run()
+
