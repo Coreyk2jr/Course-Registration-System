@@ -1,136 +1,37 @@
-import java.util.ArrayList;
-import java.util.HashMap;
+import java.sql.*;
 import java.util.Scanner;
 
-class Student {
-    private String studentId;
-    private String name;
-    private ArrayList<Course> courses;
-
-    public Student(String studentId, String name) {
-        this.studentId = studentId;
-        this.name = name;
-        this.courses = new ArrayList<>();
-    }
-
-    public void enroll(Course course) {
-        if (!courses.contains(course)) {
-            if (course.getStudents().size() < course.getMaxCapacity()) {
-                courses.add(course);
-                course.addStudent(this);
-                System.out.println("Enrollment successful: " + name + " enrolled in " + course.getCourseCode() + " - " + course.getTitle());
-            } else {
-                System.out.println("Cannot enroll " + name + " in " + course.getCourseCode() + ". Course is full.");
-            }
-        } else {
-            System.out.println(name + " is already enrolled in " + course.getCourseCode());
-        }
-    }
-
-    public void drop(Course course) {
-        if (courses.contains(course)) {
-            courses.remove(course);
-            course.removeStudent(this);
-            System.out.println(name + " has dropped " + course.getCourseCode() + " - " + course.getTitle());
-        } else {
-            System.out.println(name + " is not enrolled in " + course.getCourseCode());
-        }
-    }
-
-    @Override
-    public String toString() {
-        return "Student ID: " + studentId + ", Name: " + name;
-    }
-}
-
-class Course {
-    private String courseCode;
-    private String title;
-    private int maxCapacity;
-    private ArrayList<Student> students;
-
-    public Course(String courseCode, String title, int maxCapacity) {
-        this.courseCode = courseCode;
-        this.title = title;
-        this.maxCapacity = maxCapacity;
-        this.students = new ArrayList<>();
-    }
-
-    public void addStudent(Student student) {
-        if (students.size() < maxCapacity) {
-            students.add(student);
-        } else {
-            System.out.println("Cannot add " + student + " to " + courseCode + ". Maximum capacity reached.");
-        }
-    }
-
-    public void removeStudent(Student student) {
-        students.remove(student);
-    }
-
-    public String getCourseCode() {
-        return courseCode;
-    }
-
-    public String getTitle() {
-        return title;
-    }
-
-    public int getMaxCapacity() {
-        return maxCapacity;
-    }
-
-    public ArrayList<Student> getStudents() {
-        return students;
-    }
-
-    @Override
-    public String toString() {
-        return "Course Code: " + courseCode + ", Title: " + title + ", Capacity: " + students.size() + "/" + maxCapacity;
-    }
-}
-
-class UniversityDatabaseCLI {
-    private HashMap<String, Student> students;
-    private HashMap<String, Course> courses;
+public class UniversityDatabaseCLI {
+    private Connection connection;
+    private Scanner scanner;
 
     public UniversityDatabaseCLI() {
-        students = new HashMap<>();
-        courses = new HashMap<>();
-        preInstallCourses();
-    }
-
-    private void preInstallCourses() {
-        String[][] preInstalledCourses = {
-            {"CS101", "Introduction to Computer Science", "30"},
-            {"MATH101", "Calculus I", "25"},
-            {"ENG101", "English Literature", "20"},
-            {"BIO101", "Biology 101", "30"}
-        };
-
-        for (String[] courseData : preInstalledCourses) {
-            courses.put(courseData[0], new Course(courseData[0], courseData[1], Integer.parseInt(courseData[2])));
+        try {
+            // Connect to the MySQL database
+            connection = DriverManager.getConnection("jdbc:mysql://localhost:3306/university_db", "root", "password");
+            System.out.println("Connected to the database.");
+        } catch (SQLException e) {
+            e.printStackTrace();
         }
-        System.out.println("Pre-installed courses have been added.");
+        scanner = new Scanner(System.in);
     }
 
     public void run() {
-        Scanner scanner = new Scanner(System.in);
         while (true) {
             printMenu();
             String choice = scanner.nextLine().trim();
             switch (choice) {
                 case "1":
-                    registerStudent(scanner);
+                    registerStudent();
                     break;
                 case "2":
-                    addCourse(scanner);
+                    addCourse();
                     break;
                 case "3":
-                    enrollStudent(scanner);
+                    enrollStudent();
                     break;
                 case "4":
-                    dropStudent(scanner);
+                    dropStudent();
                     break;
                 case "5":
                     printStudents();
@@ -140,100 +41,118 @@ class UniversityDatabaseCLI {
                     break;
                 case "7":
                     System.out.println("Exiting program. Goodbye!");
-                    scanner.close();
+                    closeConnection();
                     System.exit(0);
                     break;
                 default:
-                    System.out.println("Invalid choice. Please enter a number from the menu.");
+                    System.out.println("Invalid choice. Please select a valid option.");
             }
         }
     }
 
     private void printMenu() {
-        System.out.println("""
-            University Database System Menu:
-            1. Register a new student
-            2. Add a new course
-            3. Enroll a student in a course
-            4. Drop a student from a course
-            5. Print all students
-            6. Print all courses
-            7. Exit
-            """);
+        System.out.println("\nUniversity Database System Menu:");
+        System.out.println("1. Register a new student");
+        System.out.println("2. Add a new course");
+        System.out.println("3. Enroll a student in a course");
+        System.out.println("4. Drop a student from a course");
+        System.out.println("5. Print all students");
+        System.out.println("6. Print all courses");
+        System.out.println("7. Exit");
     }
 
-    private void registerStudent(Scanner scanner) {
+    private void registerStudent() {
         System.out.print("Enter student ID: ");
         String studentId = scanner.nextLine().trim();
         System.out.print("Enter student name: ");
         String name = scanner.nextLine().trim();
-        if (students.containsKey(studentId)) {
-            System.out.println("Error: Student with ID '" + studentId + "' already exists.");
-        } else {
-            students.put(studentId, new Student(studentId, name));
+
+        try {
+            PreparedStatement stmt = connection.prepareStatement("INSERT INTO students (student_id, name) VALUES (?, ?)");
+            stmt.setString(1, studentId);
+            stmt.setString(2, name);
+            stmt.executeUpdate();
             System.out.println("Student registered successfully: " + name);
+        } catch (SQLException e) {
+            e.printStackTrace();
         }
     }
 
-    private void addCourse(Scanner scanner) {
+    private void addCourse() {
         System.out.print("Enter course code: ");
         String courseCode = scanner.nextLine().trim().toUpperCase();
-        if (courses.containsKey(courseCode)) {
-            System.out.println("Error: Course with code '" + courseCode + "' already exists.");
-        } else {
-            System.out.print("Enter course title: ");
-            String title = scanner.nextLine().trim();
-            System.out.print("Enter maximum capacity: ");
-            int maxCapacity = Integer.parseInt(scanner.nextLine().trim());
-            courses.put(courseCode, new Course(courseCode, title, maxCapacity));
+        System.out.print("Enter course title: ");
+        String title = scanner.nextLine().trim();
+        System.out.print("Enter maximum capacity: ");
+        int maxCapacity = Integer.parseInt(scanner.nextLine().trim());
+
+        try {
+            PreparedStatement stmt = connection.prepareStatement("INSERT INTO courses (course_code, title, max_capacity) VALUES (?, ?, ?)");
+            stmt.setString(1, courseCode);
+            stmt.setString(2, title);
+            stmt.setInt(3, maxCapacity);
+            stmt.executeUpdate();
             System.out.println("Course added successfully: " + courseCode + " - " + title);
+        } catch (SQLException e) {
+            e.printStackTrace();
         }
     }
 
-    private void enrollStudent(Scanner scanner) {
+    private void enrollStudent() {
         System.out.print("Enter student ID: ");
         String studentId = scanner.nextLine().trim();
         System.out.print("Enter course code: ");
         String courseCode = scanner.nextLine().trim().toUpperCase();
-        if (!students.containsKey(studentId)) {
-            System.out.println("Error: Student with ID '" + studentId + "' not found.");
-        } else if (!courses.containsKey(courseCode)) {
-            System.out.println("Error: Course with code '" + courseCode + "' not found.");
-        } else {
-            students.get(studentId).enroll(courses.get(courseCode));
-        }
+
+        // Add logic to enroll the student in the course using SQL queries
     }
 
-    private void dropStudent(Scanner scanner) {
+    private void dropStudent() {
         System.out.print("Enter student ID: ");
         String studentId = scanner.nextLine().trim();
         System.out.print("Enter course code: ");
         String courseCode = scanner.nextLine().trim().toUpperCase();
-        if (!students.containsKey(studentId)) {
-            System.out.println("Error: Student with ID '" + studentId + "' not found.");
-        } else if (!courses.containsKey(courseCode)) {
-            System.out.println("Error: Course with code '" + courseCode + "' not found.");
-        } else {
-            students.get(studentId).drop(courses.get(courseCode));
-        }
+
+        // Add logic to drop the student from the course using SQL queries
     }
 
     private void printStudents() {
-        System.out.println("List of Students:");
-        for (Student student : students.values()) {
-            System.out.println(student);
+        try {
+            Statement stmt = connection.createStatement();
+            ResultSet rs = stmt.executeQuery("SELECT * FROM students");
+            while (rs.next()) {
+                System.out.println("Student ID: " + rs.getString("student_id") + ", Name: " + rs.getString("name"));
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
         }
     }
 
     private void printCourses() {
-        System.out.println("List of Courses:");
-        for (Course course : courses.values()) {
-            System.out.println(course);
+        try {
+            Statement stmt = connection.createStatement();
+            ResultSet rs = stmt.executeQuery("SELECT * FROM courses");
+            while (rs.next()) {
+                System.out.println("Course Code: " + rs.getString("course_code") + ", Title: " + rs.getString("title") +
+                        ", Capacity: " + rs.getInt("max_capacity"));
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void closeConnection() {
+        try {
+            if (connection != null && !connection.isClosed()) {
+                connection.close();
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
         }
     }
 
     public static void main(String[] args) {
-        UniversityDatabaseCLI universityDB = new UniversityDatabaseCLI();
-        universityDB.run();
+        UniversityDatabaseCLI universityDb = new UniversityDatabaseCLI();
+        universityDb.run();
     }
 }
